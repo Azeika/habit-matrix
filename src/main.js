@@ -120,6 +120,39 @@ function updateSync(){
 }
 addEventListener('online', updateSync); addEventListener('offline', updateSync);
 
+
+/* ---------- Alarms for habits with a time ---------- */
+const isAndroid = /Android/i.test(navigator.userAgent);
+function habitTime(name){
+  const m = String(name).match(/\b(\d{1,2})[:.h](\d{2})\b/);
+  if (!m) return null;
+  const h = +m[1], mi = +m[2];
+  return (h < 24 && mi < 60) ? {h, m: mi} : null;
+}
+function alarmHref(name, t){
+  const label = name.replace(/\s*(at|@|before|by)?\s*\d{1,2}[:.h]\d{2}\s*/i, ' ').trim() || name;
+  if (isAndroid) {
+    return 'intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=' + t.h +
+      ';i.android.intent.extra.alarm.MINUTES=' + t.m + ';S.android.intent.extra.alarm.MESSAGE=' + encodeURIComponent(label) + ';end';
+  }
+  const d = new Date(); d.setHours(t.h, t.m, 0, 0);
+  const e = new Date(d.getTime() + 15*60000);
+  const f = x => x.getFullYear()+pad(x.getMonth()+1)+pad(x.getDate())+'T'+pad(x.getHours())+pad(x.getMinutes())+'00';
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(err) {}
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(label) + '&dates=' + f(d) + '/' + f(e) +
+    '&recur=' + encodeURIComponent('RRULE:FREQ=DAILY') + (tz ? '&ctz=' + encodeURIComponent(tz) : '') + '&details=' + encodeURIComponent('Daily reminder from Habit Matrix');
+}
+const bellSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>';
+let atT = null;
+function offerAlarm(name){
+  const t = habitTime(name); if (!t) return;
+  $('atMsg').textContent = `${pad(t.h)}:${pad(t.m)} · ${isAndroid ? 'set the alarm on your phone?' : 'add a daily reminder?'}`;
+  $('atLink').href = alarmHref(name, t);
+  $('atLink').textContent = isAndroid ? 'Set alarm' : 'Add reminder';
+  $('atoast').hidden = false;
+  clearTimeout(atT); atT = setTimeout(()=>{ $('atoast').hidden = true; }, 12000);
+}
+
 /* ---------- State changes ---------- */
 const isDone = (k,h) => !!(state.log[k] && state.log[k][h]);
 const todayKey = () => key(now);
@@ -199,7 +232,7 @@ let render = function(){
   drawTrend();
 
   const active = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.r : null;
-  if (!active) $('edit').innerHTML = H.map(h => `<li><input type="text" value="${esc(h.name)}" data-r="${esc(h.id)}" maxlength="40" aria-label="Rename ${esc(h.name)}"><button class="btn" data-x="${esc(h.id)}" aria-label="Delete ${esc(h.name)}">Delete</button></li>`).join('');
+  if (!active) $('edit').innerHTML = H.map(h => `<li><input type="text" value="${esc(h.name)}" data-r="${esc(h.id)}" maxlength="40" aria-label="Rename ${esc(h.name)}">${habitTime(h.name) ? `<a class="btn alm" href="${esc(alarmHref(h.name, habitTime(h.name)))}" target="_blank" rel="noopener" aria-label="${isAndroid?'Set alarm for':'Add reminder for'} ${esc(h.name)}" title="${isAndroid?'Set alarm':'Add daily reminder'}">${bellSvg}</a>` : ''}<button class="btn" data-x="${esc(h.id)}" aria-label="Delete ${esc(h.name)}">Delete</button></li>`).join('');
   $('swatches').innerHTML = ACCENTS.map(a => `<button class="sw" data-a="${a.id}" aria-pressed="${a.id===state.accent}" aria-label="${a.name}" title="${a.name}"><i style="background:${a.c}"></i></button>`).join('');
 };
 
@@ -251,12 +284,17 @@ $('addForm').addEventListener('submit', e => {
   const v = $('newHabit').value.trim(); if (!v) return;
   $('newHabit').value = '';
   setMeta({habits:[...state.habits, {id:uid(), name:v}]});
+  offerAlarm(v);
 });
 $('edit').addEventListener('change', e => {
   const i = e.target.closest('[data-r]'); if (!i) return;
   const v = i.value.trim(), h = state.habits.find(x=>x.id===i.dataset.r);
   i.blur();
-  if (h && v && v !== h.name) setMeta({habits: state.habits.map(x => x.id===h.id ? {...x, name:v} : x)});
+  if (h && v && v !== h.name) {
+    const before = habitTime(h.name), after = habitTime(v);
+    setMeta({habits: state.habits.map(x => x.id===h.id ? {...x, name:v} : x)});
+    if (after && (!before || before.h !== after.h || before.m !== after.m)) offerAlarm(v);
+  }
   else if (h) { i.value = h.name; render(); }
 });
 $('edit').addEventListener('click', e => {
@@ -267,6 +305,8 @@ $('edit').addEventListener('click', e => {
   $('toastMsg').textContent = `Deleted “${lastDeleted.h.name}”`; $('toast').hidden = false;
   clearTimeout(toastT); toastT = setTimeout(()=>{ $('toast').hidden = true; lastDeleted = null; }, 6000);
 });
+$('atClose').onclick = () => { $('atoast').hidden = true; };
+$('atLink').addEventListener('click', () => { setTimeout(()=>{ $('atoast').hidden = true; }, 300); });
 $('undo').onclick = () => {
   if (!lastDeleted) return;
   const a = [...state.habits]; a.splice(lastDeleted.idx, 0, lastDeleted.h);

@@ -127,6 +127,13 @@ input[type=text]{flex:1;font:inherit;font-size:16px;color:var(--ink);background:
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%);z-index:6;background:var(--ink);color:var(--bg);border-radius:16px;padding:6px 6px 6px 16px;display:flex;align-items:center;gap:10px;font-size:14px;white-space:nowrap}
 .toast button{color:var(--bg);font-weight:600;min-height:44px;padding:0 12px}
 .toast[hidden]{display:none}
+.alm{display:grid;place-items:center;width:48px;padding:0;flex:none}
+.alm svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.atoast{white-space:normal;width:min(400px,calc(100vw - 28px))}
+#atMsg{flex:1}
+.alm{color:var(--ink);text-decoration:none}
+.tlink{flex:none;font-weight:600;text-decoration:none;min-height:44px;display:inline-flex;align-items:center;padding:0 12px;border-radius:12px;background:var(--acc);color:var(--accInk);white-space:nowrap}
+
 
 
 /* diary */
@@ -293,6 +300,7 @@ textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
   <a href="#stats" data-v="stats"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 8-9"/><path d="M3 21h18"/></svg><span>Stats</span></a>
   <a href="#habits" data-v="habits"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Habits</span></a>
 </nav>
+<div class="toast atoast" id="atoast" hidden><span id="atMsg"></span><a id="atLink" class="tlink" href="#" target="_blank" rel="noopener">Set alarm</a><button id="atClose" aria-label="Dismiss">&#10005;</button></div>
 <div class="toast" id="toast" hidden><span id="toastMsg"></span><button id="undo">Undo</button></div>
 
 <script src="firebase-config.js"></script>
