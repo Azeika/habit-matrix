@@ -1,7 +1,7 @@
 // Habit Matrix service worker.
 // Online: always fetch the newest app files (so updates show up straight away).
 // Offline: fall back to the saved copy, so the app keeps working.
-const VERSION = 'hm-bc8fb31c90';
+const VERSION = 'hm-cb47e2af2d';
 const SHELL = ['./', 'index.html', 'app.js', 'firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {

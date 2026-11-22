@@ -507,7 +507,18 @@ document.querySelectorAll('[data-mic]').forEach(btn => {
         ta.dispatchEvent(new Event('input'));
       }
     };
-    rec.onerror = ev => { $('micNote').hidden = false; $('micNote').textContent = ev.error === 'not-allowed' ? 'Allow microphone access for this app to use voice typing.' : 'Voice typing stopped: ' + ev.error; };
+    rec.onerror = ev => {
+      const win = /Windows/i.test(navigator.userAgent), android = /Android/i.test(navigator.userAgent);
+      const alt = win ? 'Instead, click in the box and press Windows key + H to use Windows voice typing.' : android ? 'Instead, tap the microphone on your keyboard.' : 'Instead, use your keyboard’s or system’s dictation.';
+      const msg = {
+        'not-allowed': 'Allow microphone access for this app to use voice typing. ' + alt,
+        'service-not-allowed': 'This browser doesn’t allow voice typing. ' + alt,
+        'network': 'This browser can’t reach its speech service (voice typing works best in Chrome or Edge). ' + alt,
+        'no-speech': 'No speech heard. Tap the mic and try again.',
+        'audio-capture': 'No microphone found. ' + alt
+      }[ev.error] || ('Voice typing stopped. ' + alt);
+      $('micNote').hidden = false; $('micNote').textContent = msg;
+    };
     rec.onend = () => { btn.classList.remove('rec'); rec = null; recBtn = null; };
     btn.classList.add('rec'); $('micNote').hidden = true;
     try { rec.start(); } catch(e) { btn.classList.remove('rec'); }
