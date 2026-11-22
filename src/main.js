@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
+import { initLife, lifeRoute, setUser as lifeSetUser, LIFE_VIEWS, exportData as lifeExport, importData as lifeImport } from './life.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot, setDoc, deleteField, writeBatch } from 'firebase/firestore';
 
 const LS = 'habit-matrix-v1';
@@ -32,7 +33,12 @@ const saveLocal = () => { try { localStorage.setItem(LS, JSON.stringify(state));
 
 let now = new Date();
 let view = new Date(now.getFullYear(), now.getMonth(), 1);
-let lastDeleted = null, toastT = null, trendData = [];
+let lastDeleted = null, toastT = null, trendData = [], toastUndo = null;
+function showToast(msg, undo){
+  toastUndo = undo || null;
+  $('toastMsg').textContent = msg; $('undo').hidden = !undo; $('toast').hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(()=>{ $('toast').hidden = true; toastUndo = null; lastDeleted = null; }, undo ? 6000 : 2500);
+}
 
 /* ---------- Cloud layer (Firebase) ---------- */
 let fs = null, auth = null, user = null, userRef = null, unsubs = [], pendingWrites = false;
@@ -66,9 +72,10 @@ function startCloud(){
   onAuthStateChanged(auth, u => {
     unsubs.forEach(f => f()); unsubs = [];
     user = u;
-    if (!u) { userRef = null; setAcct('signedOut'); updateSync(); return; }
+    if (!u) { userRef = null; lifeSetUser(null); setAcct('signedOut'); updateSync(); return; }
     setAcct('signedIn');
     userRef = doc(fs, 'users', u.uid);
+    lifeSetUser(userRef);
     const flag = 'habit-matrix-merged-' + u.uid;
     let firstMeta = true;
     unsubs.push(onSnapshot(userRef, {includeMetadataChanges:true}, snap => {
@@ -282,7 +289,9 @@ function scrollToToday(){
 
 const VIEWS = ['today','month','diary','stats','habits'];
 function route(){
-  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'today';
+  const h = location.hash.slice(1);
+  const v = VIEWS.includes(h) || LIFE_VIEWS.includes(h) ? h : 'today';
+  if (lifeRoute(v)) return;
   for (const n of VIEWS) $('v-'+n).classList.toggle('act', n===v);
   for (const a of document.querySelectorAll('.tabs a')) { if (a.dataset.v===v) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); }
   if (!isDesk()) window.scrollTo(0,0);
@@ -323,8 +332,8 @@ $('edit').addEventListener('click', e => {
   const idx = state.habits.findIndex(x=>x.id===b.dataset.x); if (idx<0) return;
   lastDeleted = {h: state.habits[idx], idx};
   setMeta({habits: state.habits.filter((_,i)=>i!==idx)});
-  $('toastMsg').textContent = `Deleted “${lastDeleted.h.name}”`; $('toast').hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(()=>{ $('toast').hidden = true; lastDeleted = null; }, 6000);
+  const del = lastDeleted;
+  showToast(`Deleted “${del.h.name}”`, () => { const a = [...state.habits]; a.splice(del.idx, 0, del.h); setMeta({habits:a}); });
 });
 $('atClose').onclick = () => { $('atoast').hidden = true; };
 $('atLink').addEventListener('click', e => {
@@ -332,11 +341,7 @@ $('atLink').addEventListener('click', e => {
   e.preventDefault(); openAlarm(atName);
 });
 $('edit').addEventListener('click', e => { const b = e.target.closest('[data-al]'); if (!b) return; const h = state.habits.find(x=>x.id===b.dataset.al); if (h) openAlarm(h.name); });
-$('undo').onclick = () => {
-  if (!lastDeleted) return;
-  const a = [...state.habits]; a.splice(lastDeleted.idx, 0, lastDeleted.h);
-  lastDeleted = null; $('toast').hidden = true; setMeta({habits:a});
-};
+$('undo').onclick = () => { const f = toastUndo; toastUndo = null; $('toast').hidden = true; if (f) f(); };
 $('swatches').addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if (!b || b.dataset.a===state.accent) return;
   setMeta({accent:b.dataset.a});
@@ -353,21 +358,23 @@ $('signOut').onclick = () => signOut(auth);
 
 // Backup
 $('exportBtn').onclick = () => {
-  const blob = new Blob([JSON.stringify(state, null, 1)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify(Object.assign({}, state, {life: lifeExport()}), null, 1)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `habit-matrix-${todayKey()}.json`;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 };
 $('importFile').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
-    const d = normalize(JSON.parse(await f.text()));
+    const raw = JSON.parse(await f.text());
+    const d = normalize(raw);
+    if (raw && raw.life) lifeImport(raw.life);
     const log = Object.assign({}, state.log);
     for (const k in d.log) log[k] = Object.assign({}, log[k] || {}, d.log[k]);
     const ids = new Set(state.habits.map(h=>h.id));
     state = {habits: [...state.habits, ...d.habits.filter(h=>!ids.has(h.id))], accent: state.accent, log, journal: Object.assign({}, d.journal, state.journal)};
     saveLocal(); render();
     if (cloudOn()) uploadLocal(true);
-    $('toastMsg').textContent = 'Backup imported'; $('toast').hidden = false; clearTimeout(toastT); toastT = setTimeout(()=>{ $('toast').hidden = true; }, 3000);
+    showToast('Backup imported');
   } catch (err) { alert('That file isn’t a Habit Matrix backup.'); }
   e.target.value = '';
 };
@@ -496,4 +503,5 @@ document.querySelectorAll('[data-mic]').forEach(btn => {
 
 const _render = render;
 render = function(){ _render(); renderDiary(); };
+initLife({toast: showToast});
 render(); route(); startCloud();
