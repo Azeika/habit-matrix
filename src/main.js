@@ -390,31 +390,22 @@ document.addEventListener('visibilitychange', () => {
   const n = new Date(); if (key(n) !== key(now)) { now = n; view = new Date(n.getFullYear(), n.getMonth(), 1); render(); scrollToToday(); }
 });
 
-// Updates: the service worker fetches fresh files whenever online. When a new
-// service worker takes over, reload once so the new version shows immediately.
+// Updates: the service worker fetches fresh files whenever online, so closing
+// and reopening the app always shows the newest version. If a new version is
+// published while the app is open, a pop-up offers to reload.
 let swReg = null;
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   const hadController = !!navigator.serviceWorker.controller;
-  let reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloading) return;
-    reloading = true; try { sessionStorage.setItem('hm-updated', '1'); } catch (e) {}
-    location.reload();
-  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updBar').hidden = false; });
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(r => {
     swReg = r;
     setInterval(() => r.update().catch(()=>{}), 30 * 60 * 1000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') r.update().catch(()=>{}); });
   }).catch(err => console.warn('SW', err)));
 }
-try { if (sessionStorage.getItem('hm-updated')) { sessionStorage.removeItem('hm-updated'); setTimeout(() => showToast('App updated to the latest version'), 600); } } catch (e) {}
-$('updateBtn').onclick = async () => {
-  const b = $('updateBtn'); b.disabled = true; b.textContent = 'Checking…';
-  if (!navigator.onLine) { showToast('You’re offline. Connect to the internet to update.'); b.disabled = false; b.textContent = 'Update now'; return; }
-  try { if (swReg) await swReg.update(); } catch (e) {}
-  try { sessionStorage.setItem('hm-updated', '1'); } catch (e) {}
-  location.reload();
-};
+$('updReload').onclick = () => { try { sessionStorage.setItem('hm-updated', '1'); } catch (e) {} location.reload(); };
+$('updLater').onclick = () => { $('updBar').hidden = true; };
+try { if (sessionStorage.getItem('hm-updated')) { sessionStorage.removeItem('hm-updated'); setTimeout(() => showToast('Updated to the latest version'), 600); } } catch (e) {}
 
 /* ---------- Diary ---------- */
 let jDay = new Date(now); const jTimers = {};
