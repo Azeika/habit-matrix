@@ -433,7 +433,23 @@ function calLink(p, k){
   const f = t => t.getFullYear()+pad(t.getMonth()+1)+pad(t.getDate())+'T'+pad(t.getHours())+pad(t.getMinutes())+'00';
   return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(p.text) + '&dates=' + f(start) + '/' + f(end) + '&details=' + encodeURIComponent('From Habit Matrix');
 }
-const STOP = new Set('the a an and or to of in on at for with my me i we it is was be do did done get got go went have had this that today morning evening day some more less up out just about into from then than very really also not no before after until while during every each all bit lot'.split(' '));
+const STOP = new Set('the a an and or to of in on at for with my me i we it is was be do did done get got go went have had this that today day some more less up out just about into from then than very really also not no before after until while during every each all bit lot le la les un une des de du et en au aux mon ma mes je j il elle on est ai fait aujourd hui'.split(' '));
+// Words that mean "not done" for the rest of their clause, in English and French.
+const NEG = new Set('didnt dont doesnt not no never nor neither skip skipped skipping missed miss forgot forget couldnt cannot cant wasnt werent havent hasnt hadnt wont without failed pas jamais rien ni oublie oubliee saute rate'.split(' '));
+// Words that end a clause (and so end a negation).
+const BREAK = new Set('and so but because then however et mais donc puis car ensuite'.split(' '));
+function readDay(text){
+  const pos = new Set(), neg = new Set();
+  const toks = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2019']/g,'').match(/[a-z0-9]+|[.,!?;:\n]/g) || [];
+  let negOn = false;
+  for (const t of toks) {
+    if (/^[.,!?;:\n]$/.test(t) || BREAK.has(t)) { negOn = false; continue; }
+    if (NEG.has(t)) { negOn = true; continue; }
+    if (t.length < 3 || STOP.has(t) || /^\d+$/.test(t)) continue;
+    (negOn ? neg : pos).add(stem(t));
+  }
+  return {pos, neg};
+}
 const stem = w => w.replace(/(ings|ing|ed|es|s)$/,'');
 const words = t => (t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').match(/[a-z0-9]+/g) || []).filter(w => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w)).map(stem);
 function mentions(target, bag){
@@ -456,18 +472,30 @@ function renderDiary(){
   }).join('');
 }
 function checkDay(){
-  const k = key(jDay), j = getJ(k), bag = new Set(words(j.review));
+  const k = key(jDay), j = getJ(k);
   const plans = parsePlans(j.plan);
   if (!j.review.trim()) { $('checkOut').innerHTML = '<p class="sum">Write a few lines about your day first.</p>'; return; }
+  const {pos, neg} = readDay(j.review);
+  const status = t => mentions(t, neg) ? 'no' : mentions(t, pos) ? 'yes' : '';
   const done = new Set(j.done); let auto = 0;
-  for (const p of plans) if (!done.has(p.line) && mentions(p.text, bag)) { done.add(p.line); auto++; }
+  const planNo = [];
+  for (const p of plans) {
+    const st = status(p.text);
+    if (st === 'yes' && !done.has(p.line)) { done.add(p.line); auto++; }
+    if (st === 'no') planNo.push(p);
+  }
   setJ(k, {done:[...done]}, true);
   const doneN = plans.filter(p => done.has(p.line)).length;
-  const missed = plans.filter(p => !done.has(p.line));
-  const sugg = state.habits.filter(h => !isDone(k,h.id) && mentions(h.name, bag));
+  const unknown = plans.filter(p => !done.has(p.line) && !planNo.includes(p));
+  const habYes = state.habits.filter(h => status(h.name) === 'yes');
+  const habNo = state.habits.filter(h => status(h.name) === 'no');
   let out = plans.length ? `<p class="sum"><b class="dm" style="font-size:22px">${doneN}/${plans.length}</b> plans done${auto?` · ${auto} ticked from your notes`:''}.</p>` : '<p class="sum">No plans written this morning.</p>';
-  if (missed.length) out += `<p class="empty" style="margin-top:0">Not mentioned: ${missed.map(p=>esc(p.text)).join(', ')}. Tick them above if you did them.</p>`;
-  if (sugg.length) out += `<p class="sum">Sounds like you also did these habits:</p><div class="sugg">${sugg.map(h=>`<button data-sh="${esc(h.id)}">Tick ${esc(h.name)}</button>`).join('')}</div>`;
+  if (planNo.length) out += `<p class="empty" style="margin-top:0">You wrote that you didn’t: ${planNo.map(p=>esc(p.text)).join(', ')}.${planNo.some(p=>done.has(p.line)) ? ' Untick them above if that’s right.' : ''}</p>`;
+  if (unknown.length) out += `<p class="empty" style="margin-top:0">Not mentioned: ${unknown.map(p=>esc(p.text)).join(', ')}. Tick them above if you did them.</p>`;
+  const yesTodo = habYes.filter(h => !isDone(k,h.id));
+  if (yesTodo.length) out += `<p class="sum">Sounds like you did:</p><div class="sugg">${yesTodo.map(h=>`<button data-sh="${esc(h.id)}">Tick ${esc(h.name)}</button>`).join('')}</div>`;
+  if (habNo.length) out += `<p class="sum">You wrote that you didn’t:</p><div class="sugg">${habNo.map(h=> isDone(k,h.id) ? `<button data-uh="${esc(h.id)}">Untick ${esc(h.name)}</button>` : `<span class="nochip">${esc(h.name)}</span>`).join('')}</div>`;
+  if (!habYes.length && !habNo.length && !plans.length) out += '<p class="empty">I couldn’t match your notes to any habit. Tick them on the Today tab.</p>';
   $('checkOut').innerHTML = out; renderDiary();
 }
 $('planTxt').addEventListener('input', e => { setJ(key(jDay), {plan: e.target.value}); renderDiary(); });
@@ -483,6 +511,11 @@ $('checkOut').addEventListener('click', e => {
   const b = e.target.closest('[data-sh]'); if (!b || b.classList.contains('on')) return;
   const k = key(jDay); if (!isDone(k, b.dataset.sh)) toggle(k, b.dataset.sh);
   b.classList.add('on'); b.textContent = '✓ ' + b.textContent.replace(/^Tick /,'');
+});
+$('checkOut').addEventListener('click', e => {
+  const b = e.target.closest('[data-uh]'); if (!b || b.classList.contains('on')) return;
+  const k = key(jDay); if (isDone(k, b.dataset.uh)) toggle(k, b.dataset.uh);
+  b.classList.add('on'); b.textContent = '✕ ' + b.textContent.replace(/^Untick /,'');
 });
 $('dPrev').onclick = () => { jDay = new Date(jDay.getFullYear(), jDay.getMonth(), jDay.getDate()-1); $('checkOut').innerHTML=''; renderDiary(); };
 $('dNext').onclick = () => { if (key(jDay) >= todayKey()) return; jDay = new Date(jDay.getFullYear(), jDay.getMonth(), jDay.getDate()+1); $('checkOut').innerHTML=''; renderDiary(); };
