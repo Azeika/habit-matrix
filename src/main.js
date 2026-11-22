@@ -143,11 +143,32 @@ function alarmHref(name, t){
     '&recur=' + encodeURIComponent('RRULE:FREQ=DAILY') + (tz ? '&ctz=' + encodeURIComponent(tz) : '') + '&details=' + encodeURIComponent('Daily reminder from Habit Matrix');
 }
 const bellSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>';
-let atT = null;
+let atT = null, atName = '';
+function alarmHrefCal(name, t){
+  const d = new Date(); d.setHours(t.h, t.m, 0, 0); const e = new Date(d.getTime() + 15*60000);
+  const f = x => x.getFullYear()+pad(x.getMonth()+1)+pad(x.getDate())+'T'+pad(x.getHours())+pad(x.getMinutes())+'00';
+  const label = name.replace(/\s*(at|@|before|by)?\s*\d{1,2}[:.h]\d{2}\s*/i, ' ').trim() || name;
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(label) + '&dates=' + f(d) + '/' + f(e) + '&recur=' + encodeURIComponent('RRULE:FREQ=DAILY');
+}
+function openAlarm(name){
+  const t = habitTime(name); if (!t) return;
+  if (!isAndroid) { window.open(alarmHref(name, t), '_blank', 'noopener'); return; }
+  let left = false; const onHide = () => { if (document.visibilityState === 'hidden') left = true; };
+  document.addEventListener('visibilitychange', onHide);
+  location.href = alarmHref(name, t);
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHide);
+    if (left) { $('atoast').hidden = true; return; }
+    $('atMsg').textContent = 'This browser couldn’t open your Clock app. Ask Claude to set the alarm, or add a daily calendar reminder instead.';
+    $('atLink').href = alarmHrefCal(name, t); $('atLink').textContent = 'Calendar'; $('atLink').target = '_blank'; $('atLink').dataset.mode = 'cal';
+    $('atoast').hidden = false; clearTimeout(atT); atT = setTimeout(()=>{ $('atoast').hidden = true; }, 15000);
+  }, 1500);
+}
 function offerAlarm(name){
   const t = habitTime(name); if (!t) return;
   $('atMsg').textContent = `${pad(t.h)}:${pad(t.m)} · ${isAndroid ? 'set the alarm on your phone?' : 'add a daily reminder?'}`;
-  $('atLink').href = alarmHref(name, t);
+  atName = name; $('atLink').dataset.mode = 'alarm'; $('atLink').removeAttribute('target');
+  $('atLink').href = '#';
   $('atLink').textContent = isAndroid ? 'Set alarm' : 'Add reminder';
   $('atoast').hidden = false;
   clearTimeout(atT); atT = setTimeout(()=>{ $('atoast').hidden = true; }, 12000);
@@ -232,7 +253,7 @@ let render = function(){
   drawTrend();
 
   const active = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.r : null;
-  if (!active) $('edit').innerHTML = H.map(h => `<li><input type="text" value="${esc(h.name)}" data-r="${esc(h.id)}" maxlength="40" aria-label="Rename ${esc(h.name)}">${habitTime(h.name) ? `<a class="btn alm" href="${esc(alarmHref(h.name, habitTime(h.name)))}" target="_blank" rel="noopener" aria-label="${isAndroid?'Set alarm for':'Add reminder for'} ${esc(h.name)}" title="${isAndroid?'Set alarm':'Add daily reminder'}">${bellSvg}</a>` : ''}<button class="btn" data-x="${esc(h.id)}" aria-label="Delete ${esc(h.name)}">Delete</button></li>`).join('');
+  if (!active) $('edit').innerHTML = H.map(h => `<li><input type="text" value="${esc(h.name)}" data-r="${esc(h.id)}" maxlength="40" aria-label="Rename ${esc(h.name)}">${habitTime(h.name) ? `<button class="btn alm" data-al="${esc(h.id)}" aria-label="${isAndroid?'Set alarm for':'Add reminder for'} ${esc(h.name)}" title="${isAndroid?'Set alarm':'Add daily reminder'}">${bellSvg}</button>` : ''}<button class="btn" data-x="${esc(h.id)}" aria-label="Delete ${esc(h.name)}">Delete</button></li>`).join('');
   $('swatches').innerHTML = ACCENTS.map(a => `<button class="sw" data-a="${a.id}" aria-pressed="${a.id===state.accent}" aria-label="${a.name}" title="${a.name}"><i style="background:${a.c}"></i></button>`).join('');
 };
 
@@ -306,7 +327,11 @@ $('edit').addEventListener('click', e => {
   clearTimeout(toastT); toastT = setTimeout(()=>{ $('toast').hidden = true; lastDeleted = null; }, 6000);
 });
 $('atClose').onclick = () => { $('atoast').hidden = true; };
-$('atLink').addEventListener('click', () => { setTimeout(()=>{ $('atoast').hidden = true; }, 300); });
+$('atLink').addEventListener('click', e => {
+  if ($('atLink').dataset.mode === 'cal') { setTimeout(()=>{ $('atoast').hidden = true; }, 300); return; }
+  e.preventDefault(); openAlarm(atName);
+});
+$('edit').addEventListener('click', e => { const b = e.target.closest('[data-al]'); if (!b) return; const h = state.habits.find(x=>x.id===b.dataset.al); if (h) openAlarm(h.name); });
 $('undo').onclick = () => {
   if (!lastDeleted) return;
   const a = [...state.habits]; a.splice(lastDeleted.idx, 0, lastDeleted.h);

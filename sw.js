@@ -1,5 +1,5 @@
 // Habit Matrix service worker: keeps the app working offline.
-const VERSION = 'hm-v3';
+const VERSION = 'hm-v4';
 const SHELL = ['./', 'index.html', 'app.js', 'firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
