@@ -22,7 +22,7 @@
    LAYOUT: phone (<900px) = one screen per tab with a floating pill tab bar; PC = dashboard with everything visible. */
 :root{color-scheme:light dark;
   --bg:light-dark(#f2f2f0,#000);--panel:light-dark(#fff,#111);--line:light-dark(#e1e1dd,#1f1f1f);
-  --ink:light-dark(#0b0b0b,#f5f5f5);--mute:light-dark(#77777a,#8a8a8a);--dot:light-dark(#d6d6d2,#2a2a2a);
+  --ink:light-dark(#0b0b0b,#f5f5f5);--mute:light-dark(#77777a,#8a8a8a);--miss:light-dark(#e4e4e0,#1e1e1e);--dot:light-dark(#d6d6d2,#2a2a2a);
   --acc:#d71921;--accInk:#fff;--r:22px}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
@@ -74,22 +74,23 @@ h2{font-size:15px;color:var(--mute);margin-bottom:14px}
 .nav b{font-weight:500;min-width:7.5em;text-align:center;font-size:15px}
 .mx{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -6px;padding:2px 6px}
 .mx::-webkit-scrollbar{display:none}
-.grid{--c:26px;display:grid;gap:5px 3px;width:max-content;align-items:center}
+.grid{--c:24px;display:grid;gap:4px 4px;width:max-content;align-items:center}
 .hn{position:sticky;left:-6px;z-index:2;align-self:stretch;display:flex;align-items:center;background:var(--panel);box-shadow:6px 0 0 var(--panel),-6px 0 0 var(--panel);padding:0 10px 0 0;font-size:13px;width:104px}
 .hn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dh{font-size:11px;color:var(--mute);text-align:center;line-height:1.15;padding-bottom:4px}
 .dh b{display:block;font-family:"Doto",monospace;font-weight:900;font-size:13px;color:var(--ink)}
 .dh.td b,.dh.td{color:var(--acc)}
-.cell{width:var(--c);height:var(--c);display:grid;place-items:center;border-radius:50%}
-.cell::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--dot);transition:all .15s}
-.cell.on::after{width:calc(var(--c) - 6px);height:calc(var(--c) - 6px);background:var(--ink)}
-.cell.td{box-shadow:inset 0 0 0 1.5px var(--acc)}
-.cell.td.on::after{background:var(--acc)}
-.cell:disabled::after{width:5px;height:5px;opacity:.6}
-.cell:disabled{cursor:default}
+.cell{width:var(--c);height:var(--c);border-radius:6px;background:var(--miss);transition:background .15s,transform .1s}
+.cell:active{transform:scale(.9)}
+.cell.on{background:var(--acc)}
+.cell.td{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ink)}
+.cell:disabled{background:transparent;box-shadow:inset 0 0 0 1px var(--line);cursor:default}
+.cell.td:disabled{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ink)}
+
+.dh.we{opacity:.6}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;font-size:12px;color:var(--mute)}
 .legend span{display:flex;align-items:center;gap:6px}
-.legend i{width:10px;height:10px;border-radius:50%;background:var(--dot)}
+.legend i{width:12px;height:12px;border-radius:3px;background:var(--miss)}
 /* stats */
 .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
 .kpi{padding:14px}
@@ -172,9 +173,8 @@ textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
   .vh h1{font-size:22px}
   #v-today .vh{display:none}
   .pct{font-size:96px}
-  .grid{--c:100%;width:100%;gap:6px 2px}
+  .grid{--c:100%;width:100%;gap:5px 4px}
   .cell{aspect-ratio:1;height:auto;max-width:30px;justify-self:center}
-  .cell.on::after{width:78%;height:78%}
   .mx{overflow:visible}
   .hn{box-shadow:none;position:static}
   .hn{width:150px;font-size:14px}
@@ -185,7 +185,7 @@ textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
   .toast{bottom:28px}
   .tile:hover{outline:1px solid var(--line)}
 }
-@media (prefers-reduced-motion:reduce){.tile,.cell::after{transition:none}}
+@media (prefers-reduced-motion:reduce){.tile,.cell{transition:none}}
 </style>
 </head>
 <body>
@@ -248,7 +248,7 @@ textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
       </div>
       <div class="card">
         <div class="mx" id="mx"><div class="grid" id="grid"></div></div>
-        <div class="legend"><span><i style="background:var(--ink)"></i>Done</span><span><i></i>Missed</span><span><i style="background:none;box-shadow:inset 0 0 0 1.5px var(--acc)"></i>Today</span><span>Tap a past day to fix it</span></div>
+        <div class="legend"><span><i style="background:var(--acc)"></i>Done</span><span><i></i>Missed</span><span><i style="background:none;box-shadow:inset 0 0 0 1.5px var(--ink)"></i>Today</span><span>Tap a past day to fix it</span></div>
       </div>
     </section>
 

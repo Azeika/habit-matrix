@@ -230,12 +230,12 @@ let render = function(){
   const g = $('grid');
   g.style.gridTemplateColumns = isDesk() ? `150px repeat(${days.length}, minmax(0,1fr))` : `auto repeat(${days.length}, var(--c))`;
   let html = `<div class="hn" style="color:var(--mute);font-size:12px"><span>Habit</span></div>` +
-    days.map(d => `<div class="dh${key(d)===tk?' td':''}">${d.toLocaleDateString(undefined,{weekday:'narrow'})}<b>${d.getDate()}</b></div>`).join('');
+    days.map((d,i) => `<div class="dh${key(d)===tk?' td':''}${d.getDay()===1&&i?' wk':''}${d.getDay()%6===0?' we':''}">${d.toLocaleDateString(undefined,{weekday:'narrow'})}<b>${d.getDate()}</b></div>`).join('');
   for (const h of H) {
     html += `<div class="hn" title="${esc(h.name)}"><span>${esc(h.name)}</span></div>`;
     for (const d of days) {
       const k = key(d), on = isDone(k,h.id), fut = k > tk;
-      html += `<button class="cell${on?' on':''}${k===tk?' td':''}" data-d="${k}" data-h="${esc(h.id)}" ${fut?'disabled':''} aria-label="${esc(h.name)}, ${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${on?'done':'not done'}" aria-pressed="${on}"></button>`;
+      html += `<button class="cell${on?' on':''}${k===tk?' td':''}${d.getDay()===1&&d.getDate()>1?' wk':''}" data-d="${k}" data-h="${esc(h.id)}" ${fut?'disabled':''} aria-label="${esc(h.name)}, ${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${on?'done':'not done'}" aria-pressed="${on}"></button>`;
     }
   }
   g.innerHTML = html;
